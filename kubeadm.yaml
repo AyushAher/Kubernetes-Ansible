@@ -1,0 +1,30 @@
+---
+- hosts: kube_master
+  become: yes
+  tasks:
+    - name: Add Kubernetes repository
+      ansible.builtin.copy:
+        dest: /etc/yum.repos.d/kubernetes.repo
+        content: |
+          [kubernetes]
+          name=Kubernetes
+          baseurl=https://pkgs.k8s.io/core:/stable:/v1.30/rpm/
+          enabled=1
+          gpgcheck=1
+          gpgkey=https://pkgs.k8s.io/core:/stable:/v1.30/rpm/repodata/repomd.xml.key
+          exclude=kubelet,kubeadm,kubectl,cri-tools,kubernetes-cni
+
+    - name: Install Kubernetes components
+      ansible.builtin.yum:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+        disable_excludes: kubernetes
+
+    - name: Enable and start kubelet service
+      ansible.builtin.systemd:
+        name: kubelet
+        enabled: yes
+        state: started

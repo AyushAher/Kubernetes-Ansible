@@ -1,0 +1,81 @@
+---
+- hosts: kube_master
+  become: yes
+  tasks:
+    - name: Remove /etc/containerd/config.toml file
+      ansible.builtin.file:
+        path: /etc/containerd/config.toml
+        state: absent
+    - name: Ensure containerd service is running and enabled
+      ansible.builtin.service:
+        name: containerd
+        state: started
+        enabled: yes
+
+    - name: Open required ports in firewall
+      ansible.builtin.firewalld:
+        port: "{{ item }}"
+        state: enabled
+        permanent: yes
+      with_items:
+        - 6443/tcp
+        - 10250/tcp
+      notify: reload firewalld
+
+    - name: Reset kubeadm
+      ansible.builtin.command: kubeadm reset -f
+      ignore_errors: yes  # Ignore errors if kubeadm has not been initialized yet
+
+    - name: Remove Kubernetes configuration files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - /etc/kubernetes/admin.conf
+        - /etc/kubernetes/kubelet.conf
+        - /etc/kubernetes/bootstrap-kubelet.conf
+        - /etc/kubernetes/kubelet.conf.old
+        - /etc/kubernetes/bootstrap-kubelet.conf.old
+        - /etc/kubernetes/kubelet.env
+        - /etc/kubernetes/pki
+
+    - name: Initialize Kubernetes control-plane node
+      command: >
+        sudo kubeadm init --apiserver-advertise-address=192.168.0.106 --pod-network-cidr=10.244.0.0/16
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: kubeadm_init_output
+      ignore_errors: yes
+
+    - name: Set up kubectl configuration for local user
+      ansible.builtin.copy:
+        src: /etc/kubernetes/admin.conf
+        dest: "/root/.kube/config"
+        remote_src: yes
+      when: kubeadm_init_output.rc == 0
+
+    - name: Restart Kubelet and containerd
+      ansible.builtin.command: sudo kubectl get nodes
+
+    - name: Restart Kubelet and containerd
+      ansible.builtin.command: sudo kubectl get pods --all-namespaces
+
+    - name: Deploy Flannel CNI
+      ansible.builtin.command: sudo kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      when: kubeadm_init_output.rc == 0
+
+    - name: Restart Kubelet and containerd
+      ansible.builtin.command: sudo systemctl restart containerd.service && sudo systemctl restart kubelet
+
+    - name: Ensure kubelet service is started and enabled
+      ansible.builtin.service:
+        name: kubelet
+        state: started
+        enabled: yes
+
+  handlers:
+      - name: reload firewalld
+        ansible.builtin.firewalld:
+          state: reload
