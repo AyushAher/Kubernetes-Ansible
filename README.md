@@ -28,13 +28,13 @@ Before you begin, ensure you have the following prerequisites:
 
 The hosts.ini file needs to be configured with the IP addresses or hostnames of your master node(s). An example hosts.ini file is provided below:
 
-    ```
-    [masters]
-    master1 ansible_host=192.168.1.100 ansible_user=your_username
+```
+[masters]
+master1 ansible_host=192.168.1.100 ansible_user=your_username
 
-    [kube-nodes]
-    master1
-    ```
+[kube-nodes]
+master1
+```
 
 Replace 192.168.1.100 with the IP address or hostname of your master node and your_username with the username used to SSH into your servers.
 
@@ -45,9 +45,9 @@ To set up your Kubernetes master node(s), execute the following steps
 - Install Docker:
   Run the docker.yaml playbook to install Docker on all nodes listed in the hosts.ini file.
 
-      ```
-      ansible-playbook -i hosts.ini docker.yaml
-      ```
+```
+ansible-playbook -i hosts.ini docker.yaml
+```
 
 - Install Kubernetes Components:
 
